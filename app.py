@@ -140,12 +140,18 @@ def pagar(message):
         bot.send_message(message.chat.id, f"❌ Erro ao gerar PIX: {e}")
         return
 
-    bot.send_message(
+    from telebot.types import InputFile
+
+    bot.send_photo(
         message.chat.id,
-        "💳 Envie R$5,99 via PIX:\n\n"
-        "Copie o código abaixo:\n\n"
-        f"<pre>{qr_code}</pre>\n\n"
-        "Aguardando pagamento...",
+        photo=InputFile("produto.png"),
+        caption=(
+            "🛒 Acesso VIP (30 dias)\n"
+            "💰 Valor: R$ 5,99\n\n"
+            "📌 PIX Copia e Cola:\n"
+            f"<pre>{qr_code}</pre>\n\n"
+            "✅ Pagou? Eu libero automaticamente."
+        ),
         parse_mode="HTML"
     )
 
