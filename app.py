@@ -5,21 +5,12 @@ from flask import Flask, request, jsonify
 
 app = Flask(__name__)
 
-# ==============================
-# CONFIGURAÇÕES
-# ==============================
-
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 MP_ACCESS_TOKEN = os.getenv("MP_ACCESS_TOKEN")
 GROUP_ID = os.getenv("GROUP_ID")
 
 VALOR = 5.99
-
 sdk = mercadopago.SDK(MP_ACCESS_TOKEN)
-
-# ==============================
-# FUNÇÃO ENVIAR MENSAGEM
-# ==============================
 
 def enviar_mensagem(chat_id, texto):
     url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
@@ -27,10 +18,6 @@ def enviar_mensagem(chat_id, texto):
         "chat_id": chat_id,
         "text": texto
     })
-
-# ==============================
-# GERAR PIX
-# ==============================
 
 def gerar_pix(chat_id):
     payment_data = {
@@ -50,11 +37,9 @@ def gerar_pix(chat_id):
 
     return qr_code, payment_id
 
-# ==============================
-# WEBHOOK TELEGRAM
-# ==============================
 
-@app.route("/", methods=["POST"])
+# 🔹 WEBHOOK TELEGRAM (AGORA EM /telegram)
+@app.route("/telegram", methods=["POST"])
 def telegram_webhook():
     data = request.json
 
@@ -67,34 +52,28 @@ def telegram_webhook():
 
         elif texto == "/pagar":
             qr_code, payment_id = gerar_pix(chat_id)
-            enviar_mensagem(chat_id, f"Envie R$5,99 via PIX:\n\n{qr_code}\n\nApós pagar, aguarde confirmação automática.")
+            enviar_mensagem(chat_id, f"Envie R$5,99 via PIX:\n\n{qr_code}")
 
     return jsonify({"status": "ok"})
 
-# ==============================
-# WEBHOOK MERCADO PAGO
-# ==============================
 
+# 🔹 WEBHOOK MERCADO PAGO
 @app.route("/webhook", methods=["POST"])
 def mp_webhook():
     data = request.json
 
-    if data["type"] == "payment":
+    if data.get("type") == "payment":
         payment_id = data["data"]["id"]
         pagamento = sdk.payment().get(payment_id)
         status = pagamento["response"]["status"]
 
         if status == "approved":
-            # Aqui você poderia salvar em banco
-            # Por enquanto, apenas exemplo:
             print("Pagamento aprovado!")
 
     return jsonify({"status": "ok"})
 
-# ==============================
-# TESTE ONLINE
-# ==============================
 
+# 🔹 ROTA HOME
 @app.route("/", methods=["GET"])
 def home():
     return "Bot online"
