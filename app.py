@@ -67,9 +67,13 @@ def pagar(message):
     qr_code, payment_id = gerar_pix(user_id)
 
     bot.send_message(
-        message.chat.id,
-        f"Envie R$5,99 via PIX copiando o código abaixo:\n\n{qr_code}\n\nAguardando pagamento..."
-    )
+    message.chat.id,
+    f"💳 Envie R$5,99 via PIX:\n\n"
+    f"Copie o código abaixo:\n\n"
+    f"<pre>{qr_code}</pre>\n\n"
+    f"Aguardando pagamento...",
+    parse_mode="HTML"
+    )    
 
     # Verificação automática por 2 minutos
     for _ in range(24):
