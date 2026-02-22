@@ -1,35 +1,44 @@
 import os
-import telebot
-import mercadopago
-import time
 import time
 import requests
+import telebot
+import mercadopago
 
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 MP_ACCESS_TOKEN = os.getenv("MP_ACCESS_TOKEN")
+GROUP_ID = os.getenv("GROUP_ID")
 
-if not BOT_TOKEN or not MP_ACCESS_TOKEN:
-    print("Variáveis de ambiente não configuradas!")
-    exit()
+if not BOT_TOKEN or not MP_ACCESS_TOKEN or not GROUP_ID:
+    print("Faltam variáveis: BOT_TOKEN, MP_ACCESS_TOKEN, GROUP_ID")
+    raise SystemExit(1)
+
+GROUP_ID = int(GROUP_ID)
 
 bot = telebot.TeleBot(BOT_TOKEN)
 sdk = mercadopago.SDK(MP_ACCESS_TOKEN)
 
-VALOR = 0
+VALOR = 5.99
 
-
-# =============================
-# GERAR PIX
-# =============================
+def criar_convite_unico() -> str:
+    url = f"https://api.telegram.org/bot{BOT_TOKEN}/createChatInviteLink"
+    payload = {
+        "chat_id": GROUP_ID,
+        "member_limit": 1,
+        "expire_date": int(time.time()) + 600  # 10 min
+    }
+    r = requests.post(url, json=payload, timeout=15)
+    r.raise_for_status()
+    data = r.json()
+    if not data.get("ok"):
+        raise RuntimeError(data)
+    return data["result"]["invite_link"]
 
 def gerar_pix(user_id):
     payment_data = {
-        "transaction_amount": VALOR,
+        "transaction_amount": float(VALOR),
         "description": "Acesso VIP Telegram",
         "payment_method_id": "pix",
-        "payer": {
-            "email": f"user{user_id}@bot.com"
-        }
+        "payer": {"email": f"user{user_id}@bot.com"}
     }
 
     pagamento = sdk.payment().create(payment_data)
@@ -37,50 +46,42 @@ def gerar_pix(user_id):
 
     qr_code = resposta["point_of_interaction"]["transaction_data"]["qr_code"]
     payment_id = resposta["id"]
-
     return qr_code, payment_id
-
-
-# =============================
-# VERIFICAR PAGAMENTO
-# =============================
 
 def verificar_pagamento(payment_id):
     pagamento = sdk.payment().get(payment_id)
-    status = pagamento["response"]["status"]
-    return status
-
-
-# =============================
-# COMANDOS
-# =============================
+    return pagamento["response"]["status"]
 
 @bot.message_handler(commands=['start'])
 def start(message):
     bot.reply_to(message, "Bem-vindo!\nDigite /pagar para gerar seu PIX de R$5,99.")
 
-
 @bot.message_handler(commands=['pagar'])
 def pagar(message):
     user_id = message.from_user.id
-
     bot.reply_to(message, "Gerando PIX...")
 
-    qr_code, payment_id = gerar_pix(user_id)
+    try:
+        qr_code, payment_id = gerar_pix(user_id)
+    except Exception as e:
+        bot.send_message(message.chat.id, f"❌ Erro ao gerar PIX: {e}")
+        return
 
     bot.send_message(
-    message.chat.id,
-    f"💳 Envie R$5,99 via PIX:\n\n"
-    f"Copie o código abaixo:\n\n"
-    f"<pre>{qr_code}</pre>\n\n"
-    f"Aguardando pagamento...",
-    parse_mode="HTML"
-    )    
+        message.chat.id,
+        "💳 Envie R$5,99 via PIX:\n\n"
+        "Copie o código abaixo:\n\n"
+        f"<pre>{qr_code}</pre>\n\n"
+        "Aguardando pagamento...",
+        parse_mode="HTML"
+    )
 
-    # Verificação automática por 2 minutos
-    for _ in range(24):
+    for _ in range(36):  # 3 minutos
         time.sleep(5)
-        status = verificar_pagamento(payment_id)
+        try:
+            status = verificar_pagamento(payment_id)
+        except Exception:
+            continue
 
         if status == "approved":
             try:
@@ -93,7 +94,7 @@ def pagar(message):
                     "Confirme se eu sou ADMIN e tenho permissão de convidar usuários."
                 )
                 return
-        
+
             bot.send_message(
                 message.chat.id,
                 "✅ Pagamento aprovado!\n\n"
@@ -101,22 +102,11 @@ def pagar(message):
             )
             return
 
-    bot.send_message(message.chat.id, "❌ Pagamento não identificado. Tente novamente.")
+        if status in ("rejected", "cancelled"):
+            bot.send_message(message.chat.id, f"❌ Pagamento {status}. Gere outro com /pagar.")
+            return
 
+    bot.send_message(message.chat.id, "⏳ Pagamento não identificado a tempo. Tente /pagar novamente.")
 
-print("Bot rodando com PIX...")
+print("Bot rodando com PIX + acesso ao grupo...")
 bot.infinity_polling(timeout=60, long_polling_timeout=60)
-
-def criar_convite_unico() -> str:
-    url = f"https://api.telegram.org/bot{BOT_TOKEN}/createChatInviteLink"
-    payload = {
-        "chat_id": GROUP_ID,
-        "member_limit": 1,          # 1 pessoa
-        "expire_date": int(time.time()) + 600  # expira em 10 min (opcional)
-    }
-    r = requests.post(url, json=payload, timeout=15)
-    r.raise_for_status()
-    data = r.json()
-    if not data.get("ok"):
-        raise RuntimeError(data)
-    return data["result"]["invite_link"]
