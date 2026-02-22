@@ -1,5 +1,4 @@
-
 flask
+requests
 gunicorn
 mercadopago
-python-telegram-bot==13.15
