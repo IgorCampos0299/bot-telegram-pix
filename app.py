@@ -1,31 +1,17 @@
-from flask import Flask, request
-import requests
 import os
-
-app = Flask(__name__)
+import telebot
 
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 
-@app.route("/", methods=["GET"])
-def home():
-    return "Bot online"
+bot = telebot.TeleBot(BOT_TOKEN)
 
-@app.route("/telegram", methods=["POST"])
-def telegram_webhook():
-    data = request.get_json()
+@bot.message_handler(commands=['start'])
+def start(message):
+    bot.reply_to(message, "Bot funcionando 🚀")
 
-    if "message" in data:
-        chat_id = data["message"]["chat"]["id"]
-        text = data["message"].get("text", "")
+@bot.message_handler(func=lambda message: True)
+def echo(message):
+    bot.reply_to(message, f"Você disse: {message.text}")
 
-        resposta = f"Você disse: {text}"
-
-        requests.post(
-            f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage",
-            json={"chat_id": chat_id, "text": resposta}
-        )
-
-    return "ok", 200
-
-if __name__ == "__main__":
-    app.run()
+print("Bot rodando...")
+bot.infinity_polling()
