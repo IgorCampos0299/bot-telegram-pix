@@ -15,7 +15,7 @@ if not BOT_TOKEN or not MP_ACCESS_TOKEN:
 bot = telebot.TeleBot(BOT_TOKEN)
 sdk = mercadopago.SDK(MP_ACCESS_TOKEN)
 
-VALOR = 5.99
+VALOR = 0
 
 
 # =============================
