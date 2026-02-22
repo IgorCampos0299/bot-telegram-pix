@@ -168,10 +168,12 @@ def pagar(message):
                 )
                 return
 
+            set_expiracao(user_id, dias=30)
+
+           
             bot.send_message(
                 message.chat.id,
                 "✅ Pagamento aprovado!\n\n"
-                set_expiracao(user_id, dias=30)
                 f"🔗 Aqui está seu acesso (1 uso / expira em 10 min):\n{invite_link}"
             )
             return
