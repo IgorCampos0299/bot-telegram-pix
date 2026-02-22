@@ -3,6 +3,79 @@ import time
 import requests
 import telebot
 import mercadopago
+import sqlite3
+from datetime import datetime, timedelta
+import threading
+
+DB_PATH = "db.sqlite"
+
+def db_conn():
+    return sqlite3.connect(DB_PATH, check_same_thread=False)
+
+def db_init():
+    conn = db_conn()
+    cur = conn.cursor()
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS assinaturas (
+            user_id INTEGER PRIMARY KEY,
+            expira_em TEXT NOT NULL
+        )
+    """)
+    conn.commit()
+    conn.close()
+
+def set_expiracao(user_id: int, dias: int = 30):
+    expira = (datetime.utcnow() + timedelta(days=dias)).isoformat()
+    conn = db_conn()
+    cur = conn.cursor()
+    cur.execute("""
+        INSERT INTO assinaturas (user_id, expira_em)
+        VALUES (?, ?)
+        ON CONFLICT(user_id) DO UPDATE SET expira_em=excluded.expira_em
+    """, (user_id, expira))
+    conn.commit()
+    conn.close()
+
+def listar_expirados():
+    agora = datetime.utcnow().isoformat()
+    conn = db_conn()
+    cur = conn.cursor()
+    cur.execute("SELECT user_id FROM assinaturas WHERE expira_em < ?", (agora,))
+    rows = cur.fetchall()
+    conn.close()
+    return [r[0] for r in rows]
+
+def remover_registro(user_id: int):
+    conn = db_conn()
+    cur = conn.cursor()
+    cur.execute("DELETE FROM assinaturas WHERE user_id=?", (user_id,))
+    conn.commit()
+    conn.close()
+
+def remover_do_grupo(user_id: int):
+    # banir
+    url_ban = f"https://api.telegram.org/bot{BOT_TOKEN}/banChatMember"
+    r1 = requests.post(url_ban, json={"chat_id": GROUP_ID, "user_id": user_id}, timeout=15)
+    # desbanir (permite voltar pagando de novo)
+    url_unban = f"https://api.telegram.org/bot{BOT_TOKEN}/unbanChatMember"
+    r2 = requests.post(url_unban, json={"chat_id": GROUP_ID, "user_id": user_id}, timeout=15)
+    return r1.ok and r2.ok
+
+def job_remocao():
+    while True:
+        try:
+            expirados = listar_expirados()
+            for user_id in expirados:
+                ok = remover_do_grupo(user_id)
+                # remove do banco independentemente, pra não ficar tentando pra sempre
+                remover_registro(user_id)
+        except Exception:
+            pass
+
+        # roda a cada 6 horas (pode ajustar)
+        time.sleep(6 * 60 * 60)
+
+
 
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 MP_ACCESS_TOKEN = os.getenv("MP_ACCESS_TOKEN")
@@ -98,6 +171,7 @@ def pagar(message):
             bot.send_message(
                 message.chat.id,
                 "✅ Pagamento aprovado!\n\n"
+                set_expiracao(user_id, dias=30)
                 f"🔗 Aqui está seu acesso (1 uso / expira em 10 min):\n{invite_link}"
             )
             return
@@ -109,4 +183,6 @@ def pagar(message):
     bot.send_message(message.chat.id, "⏳ Pagamento não identificado a tempo. Tente /pagar novamente.")
 
 print("Bot rodando com PIX + acesso ao grupo...")
+db_init()
+threading.Thread(target=job_remocao, daemon=True).start()
 bot.infinity_polling(timeout=60, long_polling_timeout=60)
