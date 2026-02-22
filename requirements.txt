@@ -1,0 +1,5 @@
+
+flask
+gunicorn
+mercadopago
+python-telegram-bot==13.15
