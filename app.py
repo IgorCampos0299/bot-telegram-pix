@@ -3,6 +3,10 @@ import telebot
 
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 
+if not BOT_TOKEN:
+    print("BOT_TOKEN não encontrado!")
+    exit()
+
 bot = telebot.TeleBot(BOT_TOKEN)
 
 @bot.message_handler(commands=['start'])
@@ -14,4 +18,4 @@ def echo(message):
     bot.reply_to(message, f"Você disse: {message.text}")
 
 print("Bot rodando...")
-bot.infinity_polling()
+bot.infinity_polling(timeout=60, long_polling_timeout=60)
