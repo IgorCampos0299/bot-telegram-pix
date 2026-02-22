@@ -2,6 +2,8 @@ import os
 import telebot
 import mercadopago
 import time
+import time
+import requests
 
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 MP_ACCESS_TOKEN = os.getenv("MP_ACCESS_TOKEN")
@@ -81,7 +83,22 @@ def pagar(message):
         status = verificar_pagamento(payment_id)
 
         if status == "approved":
-            bot.send_message(message.chat.id, "✅ Pagamento aprovado!")
+            try:
+                invite_link = criar_convite_unico()
+            except Exception as e:
+                bot.send_message(
+                    message.chat.id,
+                    "✅ Pagamento aprovado!\n"
+                    "❌ Mas não consegui criar o link do grupo.\n"
+                    "Confirme se eu sou ADMIN e tenho permissão de convidar usuários."
+                )
+                return
+        
+            bot.send_message(
+                message.chat.id,
+                "✅ Pagamento aprovado!\n\n"
+                f"🔗 Aqui está seu acesso (1 uso / expira em 10 min):\n{invite_link}"
+            )
             return
 
     bot.send_message(message.chat.id, "❌ Pagamento não identificado. Tente novamente.")
@@ -89,3 +106,17 @@ def pagar(message):
 
 print("Bot rodando com PIX...")
 bot.infinity_polling(timeout=60, long_polling_timeout=60)
+
+def criar_convite_unico() -> str:
+    url = f"https://api.telegram.org/bot{BOT_TOKEN}/createChatInviteLink"
+    payload = {
+        "chat_id": GROUP_ID,
+        "member_limit": 1,          # 1 pessoa
+        "expire_date": int(time.time()) + 600  # expira em 10 min (opcional)
+    }
+    r = requests.post(url, json=payload, timeout=15)
+    r.raise_for_status()
+    data = r.json()
+    if not data.get("ok"):
+        raise RuntimeError(data)
+    return data["result"]["invite_link"]
