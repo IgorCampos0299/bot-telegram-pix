@@ -90,7 +90,7 @@ GROUP_ID = int(GROUP_ID)
 bot = telebot.TeleBot(BOT_TOKEN)
 sdk = mercadopago.SDK(MP_ACCESS_TOKEN)
 
-VALOR = 0.05
+VALOR = 5.99
 
 def criar_convite_unico() -> str:
     url = f"https://api.telegram.org/bot{BOT_TOKEN}/createChatInviteLink"
